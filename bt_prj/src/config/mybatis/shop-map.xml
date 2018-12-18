@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--  
+<mapper namespace="userNameSpace">
+<mapper namespace="com.biz.mapper">
+ -->
+<mapper namespace="shopNameSpace">
+
+
+ <resultMap id="sp_11" type="com.biz.shop.ShopVO" extends="shopMap">
+      <association property="plist" resultMap="shopPicMap"></association>
+   </resultMap>
+   
+    <resultMap id="sp_1n" type="com.biz.shop.ShopVO" extends="shopMap">
+       <collection property="plist" resultMap="shopPicMap"></collection>
+   </resultMap>
+   
+    
+   
+    <resultMap id="spr_1nn" type="com.biz.shop.ShopVO" extends="shopMap">
+      <collection property="plist" resultMap="shopPicMap"></collection>
+      <collection property="rlist" resultMap="shopReplyMap"></collection>
+   </resultMap>
+
+   <resultMap id="shopMap" type="com.biz.shop.ShopVO">
+      <id property="sseq" column="sseq" />
+      <result property="sname" column="sname" />
+      <result property="sinfo" column="sinfo" />
+      <result property="lat" column="lat" />
+      <result property="lng" column="lng" />
+      <result property="regid" column="regid" />
+      <result property="regdate" column="regdate" />
+      <result property="placename" column="placename" />
+   </resultMap>
+
+   <resultMap id="shopPicMap" type="com.biz.shop.ShopPicVO">
+      <id property="pseq" column="pseq" />
+      <result property="ppath" column="ppath" />
+      <result property="pname" column="pname" />
+      <result property="sysname" column="syspname" />
+      <result property="sseq" column="sseq" />
+      <result property="pchk_yn" column="pchk_yn" /> 
+   </resultMap>
+
+   <resultMap id="shopReplyMap" type="com.biz.shop.ReplyVO">
+      <id property="rseq" column="rseq" />
+      <result property="reply" column="reply" />
+      <result property="regid" column="regid" />
+      <result property="regdate" column="regdate" />
+      <result property="sseq" column="sseq" />
+   </resultMap>
+   
+    <sql id="commonSelect">user_name, user_gubun</sql>
+    
+    <select id="shop_info" resultMap="shopMap">
+      select i.sseq, i.sname, i.sinfo,
+      nvl(p.ppath,'c:/uploads') as ppath, nvl(p.pname, '1.jpg') as pname
+      from shop_info i, shop_pic p
+      where i.sseq = p.sseq(+) and p.pchk_yn(+) = 'y'
+      order by sseq desc
+    </select>
+    
+    <select id="shop_detail" parameterType="Integer" resultMap="spr_1nn">
+      select i.sseq, i.sname, i.sinfo, i.lat, i.lng,
+						nvl(p.ppath,'c:/uploads') as ppath,
+						nvl(p.pname, '000.png') as pname,
+						r.regid, r.regdate, r.reply, r.rseq
+			from shop_info i, shop_pic p, reply_info r
+			where i.sseq=#{value} 
+						and i.sseq = p.sseq(+) and i.sseq = r.sseq(+)
+			order by p.pchk_yn desc
+    </select>
+   
+    <select id="shop_detailPic" parameterType="Integer" resultMap="shopPicMap">
+       select pseq, nvl(ppath,'c:/uploads') as ppath, nvl(pname,'000.png') as pname, nvl(syspname,'000.png') as syspname
+       from shop_pic
+       where sseq=${value}
+    </select>
+    
+    <select id="shop_topN" parameterType="com.biz.shop.ShopVO" resultMap="shopMap">
+       select t.* 
+       from (select i.sseq, i.sname, i.sinfo, i.lat, i.lng,
+       nvl(p.ppath,'c:/uploads') as ppath, nvl(p.pname,'000.png') as pname,
+       calc_distance(i.lat, i.lng,#{lat},#{lng}) as distance
+       from shop_info i , shop_pic p
+       where i.sseq=p.sseq(+) and p.pchk_yn(+)='y' order by sseq desc")
+       t where rownum &lt; #{topn} 
+    </select>
+    
+    <select id="shop_all" parameterType="com.biz.shop.ShopVO" resultMap="shopMap">
+       select i.sseq, i.sname, i.sinfo, i.lat, i.lng,
+       nvl(p.ppath,'c:/uploads') as ppath, nvl(p.pname,'000.png') as pname,
+       calc_distance(i.lat, i.lng, #{lat}, #{lng}) as distance
+       from shop_info i , shop_pic p
+       where i.sseq=p.sseq(+) and p.pchk_yn(+)='y'
+       order by sseq desc 
+    </select>
+    
+    <select  id="shop_all2" parameterType="com.biz.shop.ShopVO" resultMap="shopMap">
+    select B.*
+from
+(
+    select ROWNUM as rm2, tt.*
+    from
+        (select i.sseq, i.sname, i.sinfo, i.lat, i.lng,
+        nvl(p.ppath,'c:/uploads') as ppath, nvl(p.pname,'000.png') as pname,
+        calc_distance(i.lat, i.lng,30, 125) as distance
+        from shop_info i , shop_pic p
+        where i.sseq=p.sseq(+) and p.pchk_yn(+)='y'
+        order by sseq desc ) tt
+       ) B
+WHERE rm2 between #{srartSeq} and #{endSeq}
+    </select>
+    
+    <select id="shop_nextVal" resultType="Integer">
+       select max(sseq)+1 as sseq from shop_info
+    </select>
+       
+   <insert id="shop_register" parameterType="com.biz.shop.ShopVO">
+        insert into shop_info(sseq,sname,sinfo,lat,lng,regdate)
+        values(shop_info_seq.nextval,#{sname},#{sinfo},#{lat},#{lng},sysdate) 
+    </insert>
+    
+    <insert id="shopPic_register" parameterType="com.biz.shop.ShopPicVO">
+         insert into shop_pic(pseq, ppath, pname, syspname, sseq, pyn)
+         values(shop_pic_seq.nextval,#{ppath},#{pname},#{sysname},#{sseq},#{pchk_yn}) 
+    </insert>
+
+    <insert id="reply_insert" parameterType="com.biz.shop.ReplyVO">
+        insert into reply_info(rseq,reply,regid,regdate,sseq)
+        values(reply_seq.nextval,#{reply},#{regid},sysdate,#{sseq}) 
+    </insert>
+    
+    <select id="reply_select" parameterType="com.biz.shop.ReplyVO" resultMap="shopReplyMap">
+       select reply,regid,regdate
+       from reply_info
+       where sseq=#{sseq}
+    </select>
+   
+</mapper>   
